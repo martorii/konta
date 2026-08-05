@@ -6,6 +6,9 @@ dist/
 wheels/
 *.egg-info
 
+# Input folder
+input/
+
 # Virtual environments
 .venv
 
@@ -13,3 +16,6 @@ wheels/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+
+# Local environment overrides
+.env
