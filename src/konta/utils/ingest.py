@@ -56,6 +56,10 @@ def ingest_folder(folder: Path, format: str) -> pd.DataFrame:
     for path in skipped:
         logger.warning("Omitting invalid file %s", path.name)
 
+    if not paths:
+        logger.info("No valid CSV files found in %s, nothing to ingest", folder)
+        return pd.DataFrame()
+
     transactions: list[Transaction] = []
     for path in paths:
         frame = _read_file(path)

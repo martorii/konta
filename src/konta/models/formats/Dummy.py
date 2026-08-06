@@ -16,7 +16,6 @@ class DummyTransaction(RawTransaction):
     def to_canonical(self) -> Transaction:
         date_ = datetime.datetime.strptime(self.Fecha, "%d/%m/%Y").date()
         return Transaction(
-            id=Transaction.make_id(date_, self.Importe, self.Divisa, self.Concepto),
             date=date_,
             amount=self.Importe,
             currency=self.Divisa,
