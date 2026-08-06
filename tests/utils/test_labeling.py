@@ -91,3 +91,20 @@ def test_label_interactively_does_nothing_when_all_categorized(
     monkeypatch.setattr("builtins.input", _fail_input)
 
     label_interactively(transactions, rules_path)
+
+
+def test_label_interactively_respects_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rules_path = tmp_path / "categories.yaml"
+    rules_path.write_text("{}\n")
+    transactions = [_txn("REWE SAGT DANKE"), _txn("AMAZON EU SARL")]
+
+    monkeypatch.setattr("builtins.input", lambda _: "groceries")
+
+    label_interactively(transactions, rules_path, limit=1)
+
+    rules = load_rules(rules_path)
+    assert "groceries" in rules
+    assert rules["groceries"][0].search("REWE SAGT DANKE")
+    assert rules["groceries"][0].search("AMAZON EU SARL") is None

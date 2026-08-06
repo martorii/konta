@@ -53,12 +53,15 @@ def _prompt_category(counterparty: str, letter_map: dict[str, str]) -> str:
     return letter_map.get(raw.upper(), raw)
 
 
-def label_interactively(transactions: list[Transaction], rules_path: Path) -> None:
+def label_interactively(
+    transactions: list[Transaction], rules_path: Path, limit: int | None = None
+) -> None:
     """Prompt the user, one at a time, to assign a category to each uncategorized counterparty.
 
     Existing categories are shown as a lettered menu so they can be picked without
     retyping the name; typing a name not on the menu creates a new category. Rules
-    are written back to `rules_path` once labelling is done.
+    are written back to `rules_path` once labelling is done. If `limit` is given,
+    only the first `limit` uncategorized counterparties are prompted for.
     """
     rules = load_rules(rules_path)
     uncategorized = find_uncategorized(transactions, rules)
@@ -66,6 +69,9 @@ def label_interactively(transactions: list[Transaction], rules_path: Path) -> No
     if not uncategorized:
         logger.info("No uncategorized counterparties found")
         return
+
+    if limit is not None:
+        uncategorized = uncategorized[:limit]
 
     for counterparty in uncategorized:
         letter_map = _print_category_menu(sorted(rules))

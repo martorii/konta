@@ -46,6 +46,13 @@ def build_parser() -> argparse.ArgumentParser:
         "label", help="Interactively assign categories to uncategorized transactions"
     )
     _add_input_args(label_parser)
+    label_parser.add_argument(
+        "-n",
+        "--limit",
+        type=int,
+        default=None,
+        help="Only label the first N unlabelled entries",
+    )
 
     return parser
 
@@ -55,9 +62,9 @@ def _run(input_folder: Path, format: str, rules_path: Path) -> None:
     print(result.head())
 
 
-def _label(input_folder: Path, format: str, rules_path: Path) -> None:
+def _label(input_folder: Path, format: str, rules_path: Path, limit: int | None) -> None:
     transactions = ingest_transactions(input_folder, format=format, rules_path=rules_path)
-    label_interactively(transactions, rules_path)
+    label_interactively(transactions, rules_path, limit=limit)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -68,7 +75,7 @@ def main(argv: list[str] | None = None) -> None:
         case "run":
             _run(args.input, args.format, args.rules)
         case "label":
-            _label(args.input, args.format, args.rules)
+            _label(args.input, args.format, args.rules, args.limit)
         case _:
             print("Hello from konta!")
 
