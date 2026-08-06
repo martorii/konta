@@ -22,3 +22,6 @@ input/
 
 # User-specific category config
 src/konta/config/categories.yaml
+
+# macOS
+.DS_Store
