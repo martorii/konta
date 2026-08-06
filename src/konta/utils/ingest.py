@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from konta.models.formats import FORMAT_REGISTRY
 from konta.models.formats.base import RawTransaction
 from konta.models.Transaction import Transaction
+from konta.utils.categorize import DEFAULT_RULES_PATH, categorize_transaction, load_rules
 from konta.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -40,8 +41,10 @@ def _map_frame(
     return transactions
 
 
-def ingest_folder(folder: Path, format: str) -> pd.DataFrame:
-    """Reads input folder and maps valid files of the given format into canonical rows."""
+def ingest_transactions(
+    folder: Path, format: str, rules_path: Path = DEFAULT_RULES_PATH
+) -> list[Transaction]:
+    """Reads input folder and maps valid files of the given format into categorized transactions."""
 
     logger.info("Ingesting folder %s with format %s", folder, format)
 
@@ -59,7 +62,7 @@ def ingest_folder(folder: Path, format: str) -> pd.DataFrame:
 
     if not paths:
         logger.info("No valid CSV files found in %s, nothing to ingest", folder)
-        return pd.DataFrame()
+        return []
 
     transactions: list[Transaction] = []
     for path in paths:
@@ -70,7 +73,21 @@ def ingest_folder(folder: Path, format: str) -> pd.DataFrame:
             logger.error("Failed to map rows in %s to format %s", path.name, format)
             raise
 
-    result = pd.DataFrame([t.model_dump() for t in transactions])
-    logger.info("Ingested %d rows from %d files", len(result), len(paths))
+    rules = load_rules(rules_path)
+    try:
+        transactions = [categorize_transaction(t, rules) for t in transactions]
+    except ValueError:
+        logger.error("Failed to categorize transactions ingested from %s", folder)
+        raise
 
-    return result
+    logger.info("Ingested %d rows from %d files", len(transactions), len(paths))
+
+    return transactions
+
+
+def ingest_folder(
+    folder: Path, format: str, rules_path: Path = DEFAULT_RULES_PATH
+) -> pd.DataFrame:
+    """Reads input folder and returns categorized transactions of the given format as a frame."""
+    transactions = ingest_transactions(folder, format, rules_path)
+    return pd.DataFrame([t.model_dump() for t in transactions])

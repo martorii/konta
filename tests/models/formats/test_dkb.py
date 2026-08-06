@@ -27,7 +27,7 @@ def test_ingest_folder_maps_dkb_format_to_canonical(tmp_path: Path) -> None:
 
     result = ingest_folder(tmp_path, format="dkb")
 
-    assert list(result.columns) == ["id", "date", "amount", "currency", "counterparty"]
+    assert list(result.columns) == ["id", "date", "amount", "currency", "counterparty", "category"]
     assert len(result) == 2
 
     outgoing = result.iloc[0]

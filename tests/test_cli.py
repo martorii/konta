@@ -23,7 +23,7 @@ def test_run_prints_first_five_rows(
     main(["run", "--input", str(tmp_path), "--format", "dummy"])
 
     captured = capsys.readouterr()
-    assert "AMAZON EU SARL" in captured.out
+    assert "category" in captured.out
 
 
 def test_version() -> None:

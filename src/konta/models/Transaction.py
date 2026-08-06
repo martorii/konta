@@ -13,6 +13,7 @@ class Transaction(BaseModel):
     amount: Decimal
     currency: str
     counterparty: str
+    category: str | None = None
 
     @model_validator(mode="after")
     def _set_id(self) -> "Transaction":

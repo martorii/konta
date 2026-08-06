@@ -3,7 +3,30 @@ from importlib.metadata import version
 from pathlib import Path
 
 from konta.models.formats import FORMAT_REGISTRY
-from konta.utils.ingest import ingest_folder
+from konta.utils.categorize import DEFAULT_RULES_PATH
+from konta.utils.ingest import ingest_folder, ingest_transactions
+from konta.utils.labeling import label_interactively
+
+
+def _add_input_args(subparser: argparse.ArgumentParser) -> None:
+    subparser.add_argument(
+        "--input",
+        type=Path,
+        required=True,
+        help="Path to the input folder containing files to ingest",
+    )
+    subparser.add_argument(
+        "--format",
+        choices=sorted(FORMAT_REGISTRY),
+        default="dummy",
+        help="Input file format (default: %(default)s)",
+    )
+    subparser.add_argument(
+        "--rules",
+        type=Path,
+        default=DEFAULT_RULES_PATH,
+        help="Path to the category rules YAML file (default: %(default)s)",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,35 +40,37 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
 
     run_parser = subparsers.add_parser("run", help="Ingest an input folder")
-    run_parser.add_argument(
-        "--input",
-        type=Path,
-        required=True,
-        help="Path to the input folder containing files to ingest",
+    _add_input_args(run_parser)
+
+    label_parser = subparsers.add_parser(
+        "label", help="Interactively assign categories to uncategorized transactions"
     )
-    run_parser.add_argument(
-        "--format",
-        choices=sorted(FORMAT_REGISTRY),
-        default="dummy",
-        help="Input file format (default: %(default)s)",
-    )
+    _add_input_args(label_parser)
 
     return parser
 
 
-def _run(input_folder: Path, format: str) -> None:
-    result = ingest_folder(input_folder, format=format)
+def _run(input_folder: Path, format: str, rules_path: Path) -> None:
+    result = ingest_folder(input_folder, format=format, rules_path=rules_path)
     print(result.head())
+
+
+def _label(input_folder: Path, format: str, rules_path: Path) -> None:
+    transactions = ingest_transactions(input_folder, format=format, rules_path=rules_path)
+    label_interactively(transactions, rules_path)
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "run":
-        _run(args.input, args.format)
-    else:
-        print("Hello from konta!")
+    match args.command:
+        case "run":
+            _run(args.input, args.format, args.rules)
+        case "label":
+            _label(args.input, args.format, args.rules)
+        case _:
+            print("Hello from konta!")
 
 
 if __name__ == "__main__":
