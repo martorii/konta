@@ -23,6 +23,7 @@ class DkbTransaction(RawTransaction):
     zahlungsempfaenger: str = Field(alias="Zahlungsempfänger*in")
     umsatztyp: str = Field(alias="Umsatztyp")
     betrag: str = Field(alias="Betrag (€)")
+    verwendungszweck: str = Field(alias="Verwendungszweck")
 
     def to_canonical(self) -> Transaction:
         date_ = datetime.datetime.strptime(self.buchungsdatum, "%d.%m.%y").date()
@@ -34,4 +35,5 @@ class DkbTransaction(RawTransaction):
             amount=_parse_german_decimal(self.betrag),
             currency="EUR",
             counterparty=counterparty,
+            reference=self.verwendungszweck,
         )

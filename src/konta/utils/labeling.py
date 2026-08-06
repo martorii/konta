@@ -17,7 +17,7 @@ def find_uncategorized(transactions: list[Transaction], rules: CategoryRules) ->
     return list(
         dict.fromkeys(
             t.counterparty
-            for t in transactions
+            for t in sorted(transactions, key=lambda t: t.amount, reverse=False)
             if t.amount < 0 and categorize(t.counterparty, rules) is None
         )
     )

@@ -33,7 +33,15 @@ def test_ingest_folder_maps_dummy_format_to_canonical(tmp_path: Path) -> None:
 
     result = ingest_folder(tmp_path, format="dummy")
 
-    assert list(result.columns) == ["id", "date", "amount", "currency", "counterparty", "category"]
+    assert list(result.columns) == [
+        "id",
+        "date",
+        "amount",
+        "currency",
+        "counterparty",
+        "reference",
+        "category",
+    ]
     assert len(result) == 2
     row = result.iloc[0]
     assert row["counterparty"] == "AMAZON EU SARL"

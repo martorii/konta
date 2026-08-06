@@ -27,7 +27,15 @@ def test_ingest_folder_maps_dkb_format_to_canonical(tmp_path: Path) -> None:
 
     result = ingest_folder(tmp_path, format="dkb")
 
-    assert list(result.columns) == ["id", "date", "amount", "currency", "counterparty", "category"]
+    assert list(result.columns) == [
+        "id",
+        "date",
+        "amount",
+        "currency",
+        "counterparty",
+        "reference",
+        "category",
+    ]
     assert len(result) == 2
 
     outgoing = result.iloc[0]
@@ -35,8 +43,10 @@ def test_ingest_folder_maps_dkb_format_to_canonical(tmp_path: Path) -> None:
     assert Decimal(str(outgoing["amount"])) == Decimal("-6.6")
     assert outgoing["currency"] == "EUR"
     assert outgoing["counterparty"] == "SUPREMO.KAFFEEROSTEREI"
+    assert outgoing["reference"] == "VISA Debitkartenumsatz vom 03.08.2026"
 
     incoming = result.iloc[1]
     assert incoming["date"] == datetime.date(2026, 7, 31)
     assert Decimal(str(incoming["amount"])) == Decimal("1500.49")
     assert incoming["counterparty"] == "YOLANDA LOPEZ ROYO"
+    assert incoming["reference"] == "YAYOS"
