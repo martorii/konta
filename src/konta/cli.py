@@ -6,6 +6,9 @@ from konta.models.formats import FORMAT_REGISTRY
 from konta.utils.categorize import DEFAULT_RULES_PATH
 from konta.utils.ingest import ingest_folder, ingest_transactions
 from konta.utils.labeling import label_interactively
+from konta.utils.report import generate_report
+
+DEFAULT_REPORT_PATH = Path("output/report.html")
 
 
 def _add_input_args(subparser: argparse.ArgumentParser) -> None:
@@ -54,6 +57,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Only label the first N unlabelled entries",
     )
 
+    report_parser = subparsers.add_parser(
+        "report", help="Generate an HTML spend-by-category report"
+    )
+    _add_input_args(report_parser)
+    report_parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_REPORT_PATH,
+        help="Path to write the HTML report to (default: %(default)s)",
+    )
+
     return parser
 
 
@@ -67,6 +81,12 @@ def _label(input_folder: Path, format: str, rules_path: Path, limit: int | None)
     label_interactively(transactions, rules_path, limit=limit)
 
 
+def _report(input_folder: Path, format: str, rules_path: Path, output_path: Path) -> None:
+    transactions = ingest_transactions(input_folder, format=format, rules_path=rules_path)
+    generate_report(transactions, output_path)
+    print(f"Wrote report to {output_path}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -76,6 +96,8 @@ def main(argv: list[str] | None = None) -> None:
             _run(args.input, args.format, args.rules)
         case "label":
             _label(args.input, args.format, args.rules, args.limit)
+        case "report":
+            _report(args.input, args.format, args.rules, args.output)
         case _:
             print("Hello from konta!")
 

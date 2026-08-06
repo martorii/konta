@@ -9,6 +9,9 @@ wheels/
 # Input folder
 input/
 
+# Generated reports
+output/
+
 # Virtual environments
 .venv
 

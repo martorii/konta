@@ -26,6 +26,27 @@ def test_run_prints_first_five_rows(
     assert "category" in captured.out
 
 
+def test_report_writes_html_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / "a.csv").write_text(DUMMY_HEADER + "31/12/2025,AMAZON EU SARL,-45.99,EUR\n")
+    output_path = tmp_path / "report.html"
+
+    main(
+        [
+            "report",
+            "--input",
+            str(tmp_path),
+            "--format",
+            "dummy",
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert str(output_path) in captured.out
+    assert output_path.exists()
+
+
 def test_version() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "konta.cli", "--version"],
