@@ -27,11 +27,12 @@ def test_render_report_shows_no_transactions_message_when_empty() -> None:
     assert "No outgoing transactions found." in html
 
 
-def test_render_report_excludes_incoming_transactions() -> None:
+def test_render_report_excludes_incoming_transactions_from_chart() -> None:
     html = render_report([_txn("100", "salary")])
 
-    assert "salary" not in html
     assert "No outgoing transactions found." in html
+    chart_section = html.split("<div class=\"table-wrap\">")[0]
+    assert "salary" not in chart_section
 
 
 def test_render_report_groups_uncategorized_as_bucket() -> None:
@@ -77,6 +78,61 @@ def test_render_report_shows_30_day_average_total_spend() -> None:
 
     assert "30-day average total spend" in html
     assert "60.00 EUR" in html
+
+
+def test_render_report_excludes_ignored_category_from_chart() -> None:
+    html = render_report(
+        [
+            _txn("-10", "groceries", counterparty="SUPERMARKET"),
+            _txn("-500", "Ignore", counterparty="TRANSFER"),
+        ]
+    )
+
+    chart_section = html.split('<div class="table-wrap">')[0]
+    assert "Ignore" not in chart_section
+    assert "500.00 EUR" not in chart_section
+    assert "300.00 EUR" in chart_section
+
+
+def test_render_report_keeps_ignored_category_in_table() -> None:
+    html = render_report(
+        [
+            _txn("-10", "groceries", counterparty="SUPERMARKET"),
+            _txn("-500", "Ignore", counterparty="TRANSFER"),
+        ]
+    )
+
+    table_section = html.split('<div class="table-wrap">')[1]
+    assert "TRANSFER" in table_section
+    assert "Ignore" in table_section
+
+
+def test_render_report_shows_no_transactions_message_when_only_ignored() -> None:
+    html = render_report([_txn("-500", "Ignore", counterparty="TRANSFER")])
+
+    assert "No outgoing transactions found." in html
+    assert "TRANSFER" in html
+
+
+def test_render_report_includes_all_transactions_in_table() -> None:
+    html = render_report(
+        [
+            _txn("-10", "groceries", counterparty="SUPERMARKET"),
+            _txn("100", "salary", counterparty="EMPLOYER"),
+        ]
+    )
+
+    assert "SUPERMARKET" in html
+    assert "EMPLOYER" in html
+    assert 'id="tx-table"' in html
+
+
+def test_render_report_table_is_sortable() -> None:
+    html = render_report([_txn("-10", "groceries")])
+
+    assert 'data-type="text"' in html
+    assert 'data-type="number"' in html
+    assert "addEventListener" in html
 
 
 def test_generate_report_writes_file_and_creates_parents(tmp_path: Path) -> None:

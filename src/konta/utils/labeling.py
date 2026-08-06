@@ -80,7 +80,7 @@ def label_interactively(
     if limit is not None:
         uncategorized = uncategorized[:limit]
 
-    amount_by_counterparty = {t.counterparty: t for t in transactions}
+    amount_by_counterparty = {t.counterparty: t for t in transactions if t.amount < 0}
 
     for counterparty in uncategorized:
         txn = amount_by_counterparty[counterparty]

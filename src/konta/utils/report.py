@@ -8,6 +8,7 @@ from konta.utils.logger import get_logger
 logger = get_logger(__name__)
 
 UNCATEGORIZED = "Uncategorized"
+IGNORED_CATEGORIES = {"Ignore"}
 AVERAGING_WINDOW_DAYS = 30
 
 
@@ -45,9 +46,98 @@ def _render_bar(average: CategoryAverage, max_avg: Decimal, currency: str) -> st
     </div>"""
 
 
+def _render_transaction_row(t: Transaction) -> str:
+    return f"""
+      <tr>
+        <td data-sort="{t.date.isoformat()}">{t.date.isoformat()}</td>
+        <td>{t.counterparty}</td>
+        <td>{t.category or UNCATEGORIZED}</td>
+        <td data-sort="{t.amount}" class="num">{t.amount:.2f}</td>
+        <td>{t.currency}</td>
+      </tr>"""
+
+
+def _render_category_options(transactions: list[Transaction]) -> str:
+    categories = sorted({t.category or UNCATEGORIZED for t in transactions})
+    options = "".join(f'<option value="{c}">{c}</option>' for c in categories)
+    return f'<option value="">All categories</option>{options}'
+
+
+def _render_transactions_table(transactions: list[Transaction]) -> str:
+    rows = "".join(_render_transaction_row(t) for t in transactions)
+    category_options = _render_category_options(transactions)
+    return f"""
+    <div class="table-wrap">
+      <div class="table-controls">
+        <label for="tx-category-filter">Category</label>
+        <select id="tx-category-filter">{category_options}</select>
+      </div>
+      <div class="table-scroll">
+        <table class="tx-table" id="tx-table">
+          <thead>
+            <tr>
+              <th data-type="text">Date</th>
+              <th data-type="text">Counterparty</th>
+              <th data-type="text">Category</th>
+              <th data-type="number" class="num">Amount</th>
+              <th data-type="text">Currency</th>
+            </tr>
+          </thead>
+          <tbody>{rows}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <script>
+      (function () {{
+        var table = document.getElementById("tx-table");
+        if (!table) return;
+        var categoryFilter = document.getElementById("tx-category-filter");
+        if (categoryFilter) {{
+          categoryFilter.addEventListener("change", function () {{
+            var selected = categoryFilter.value;
+            var rows = table.querySelectorAll("tbody tr");
+            rows.forEach(function (row) {{
+              var category = row.children[2].textContent;
+              row.style.display = !selected || category === selected ? "" : "none";
+            }});
+          }});
+        }}
+        var headers = table.querySelectorAll("thead th");
+        headers.forEach(function (th, index) {{
+          var state = 0;
+          th.addEventListener("click", function () {{
+            var tbody = table.querySelector("tbody");
+            var rows = Array.prototype.slice.call(tbody.querySelectorAll("tr"));
+            state = state === 1 ? -1 : 1;
+            headers.forEach(function (h) {{ h.classList.remove("sort-asc", "sort-desc"); }});
+            th.classList.add(state === 1 ? "sort-asc" : "sort-desc");
+            var type = th.getAttribute("data-type");
+            rows.sort(function (a, b) {{
+              var cellA = a.children[index];
+              var cellB = b.children[index];
+              var valA = cellA.getAttribute("data-sort") || cellA.textContent;
+              var valB = cellB.getAttribute("data-sort") || cellB.textContent;
+              if (type === "number") {{
+                valA = parseFloat(valA);
+                valB = parseFloat(valB);
+              }}
+              if (valA < valB) return -1 * state;
+              if (valA > valB) return 1 * state;
+              return 0;
+            }});
+            rows.forEach(function (row) {{ tbody.appendChild(row); }});
+          }});
+        }});
+      }})();
+    </script>"""
+
+
 def render_report(transactions: list[Transaction]) -> str:
     """Render a self-contained HTML report of 30-day average spend per category."""
-    outgoing = [t for t in transactions if t.amount < 0]
+    outgoing = [
+        t for t in transactions if t.amount < 0 and t.category not in IGNORED_CATEGORIES
+    ]
 
     if not outgoing:
         body = "<p>No outgoing transactions found.</p>"
@@ -63,6 +153,10 @@ def render_report(transactions: list[Transaction]) -> str:
       <div class="total-value">{total_avg:.2f} {currency}</div>
     </div>
     <div class="chart">{bars}</div>"""
+
+    body += _render_transactions_table(
+        sorted(transactions, key=lambda t: t.date, reverse=True)
+    )
 
     return f"""<!doctype html>
 <html>
@@ -160,6 +254,60 @@ def render_report(transactions: list[Transaction]) -> str:
     color: var(--text-secondary);
     font-variant-numeric: tabular-nums;
   }}
+  .table-wrap {{
+    margin-top: 2rem;
+    border: 1px solid var(--gridline);
+    border-radius: 6px;
+  }}
+  .table-controls {{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--gridline);
+  }}
+  .table-controls label {{ color: var(--text-secondary); }}
+  .table-controls select {{
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--surface-1);
+    border: 1px solid var(--gridline);
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+  }}
+  .table-scroll {{
+    max-height: 420px;
+    overflow-y: auto;
+    overflow-x: auto;
+  }}
+  .tx-table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }}
+  .tx-table th, .tx-table td {{
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    white-space: nowrap;
+  }}
+  .tx-table td.num, .tx-table th.num {{
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }}
+  .tx-table thead th {{
+    position: sticky;
+    top: 0;
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--gridline);
+  }}
+  .tx-table thead th:hover {{ color: var(--text-primary); }}
+  .tx-table thead th.sort-asc::after {{ content: " \\2191"; }}
+  .tx-table thead th.sort-desc::after {{ content: " \\2193"; }}
+  .tx-table tbody tr:not(:last-child) td {{ border-bottom: 1px solid var(--gridline); }}
 </style>
 </head>
 <body>
