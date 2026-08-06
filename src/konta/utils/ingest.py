@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 from pydantic import ValidationError
@@ -11,9 +12,9 @@ from konta.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _read_file(path: Path) -> pd.DataFrame:
-    """Read a single CSV file into a pandas DataFrame."""
-    return pd.read_csv(path)
+def _read_file(path: Path, raw_model: type[RawTransaction]) -> pd.DataFrame:
+    """Read a single CSV file into a pandas DataFrame, using the format's read_csv kwargs."""
+    return cast(pd.DataFrame, pd.read_csv(path, **raw_model.read_csv_kwargs))
 
 
 def _file_is_valid(path: Path) -> bool:
@@ -62,7 +63,7 @@ def ingest_folder(folder: Path, format: str) -> pd.DataFrame:
 
     transactions: list[Transaction] = []
     for path in paths:
-        frame = _read_file(path)
+        frame = _read_file(path, raw_model)
         try:
             transactions.extend(_map_frame(path, frame, raw_model))
         except ValueError:
