@@ -36,21 +36,25 @@ def _summarize(outgoing: list[Transaction]) -> list[CategorySummary]:
     return sorted(summaries, key=lambda s: s.total, reverse=True)
 
 
-def _render_bar(summary: CategorySummary, max_total: Decimal, currency: str) -> str:
+def _render_bar(
+    summary: CategorySummary, max_total: Decimal, total_spend: Decimal, currency: str
+) -> str:
     width = float(summary.total / max_total * 100)
+    share = float(summary.total / total_spend * 100)
     return f"""
     <div class="bar-row">
       <div class="bar-label">{summary.category}</div>
       <div class="bar-track"><div class="bar-fill" style="width: {width:.2f}%"></div></div>
-      <div class="bar-value">{summary.total:.2f} {currency}</div>
+      <div class="bar-value">{summary.total:.2f} {currency} ({share:.1f}%)</div>
     </div>"""
 
 
-def _render_table_row(summary: CategorySummary, currency: str) -> str:
+def _render_table_row(summary: CategorySummary, total_spend: Decimal, currency: str) -> str:
+    share = float(summary.total / total_spend * 100)
     return f"""
     <tr>
       <td>{summary.category}</td>
-      <td>{summary.total:.2f} {currency}</td>
+      <td>{summary.total:.2f} {currency} ({share:.1f}%)</td>
       <td>{summary.count}</td>
       <td>{summary.average:.2f} {currency}</td>
     </tr>"""
@@ -70,8 +74,8 @@ def render_report(transactions: list[Transaction]) -> str:
         end = max(t.date for t in outgoing)
         max_total = summaries[0].total
 
-        bars = "".join(_render_bar(s, max_total, currency) for s in summaries)
-        rows = "".join(_render_table_row(s, currency) for s in summaries)
+        bars = "".join(_render_bar(s, max_total, total_spend, currency) for s in summaries)
+        rows = "".join(_render_table_row(s, total_spend, currency) for s in summaries)
 
         body = f"""
         <p class="summary">
