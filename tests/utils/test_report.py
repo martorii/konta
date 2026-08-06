@@ -6,9 +6,14 @@ from konta.models.Transaction import Transaction
 from konta.utils.report import generate_report, render_report
 
 
-def _txn(amount: str, category: str | None, counterparty: str = "SHOP") -> Transaction:
+def _txn(
+    amount: str,
+    category: str | None,
+    date: datetime.date = datetime.date(2025, 12, 31),
+    counterparty: str = "SHOP",
+) -> Transaction:
     return Transaction(
-        date=datetime.date(2025, 12, 31),
+        date=date,
         amount=Decimal(amount),
         currency="EUR",
         counterparty=counterparty,
@@ -35,7 +40,7 @@ def test_render_report_groups_uncategorized_as_bucket() -> None:
     assert "Uncategorized" in html
 
 
-def test_render_report_sums_per_category_and_sorts_descending() -> None:
+def test_render_report_sorts_categories_descending_by_30d_average() -> None:
     html = render_report(
         [
             _txn("-10", "groceries"),
@@ -47,8 +52,31 @@ def test_render_report_sums_per_category_and_sorts_descending() -> None:
     rent_index = html.index("rent")
     groceries_index = html.index("groceries")
     assert rent_index < groceries_index
-    assert "50.00 EUR" in html
-    assert "15.00 EUR" in html
+
+
+def test_render_report_normalizes_totals_to_30_day_average() -> None:
+    # A 10-day spread means the 30-day average is 3x the raw total.
+    html = render_report(
+        [
+            _txn("-10", "groceries", date=datetime.date(2025, 12, 1)),
+            _txn("-10", "groceries", date=datetime.date(2025, 12, 11)),
+        ]
+    )
+
+    assert "60.00 EUR" in html
+
+
+def test_render_report_shows_30_day_average_total_spend() -> None:
+    # A 30-day spread means the 30-day average equals the raw total.
+    html = render_report(
+        [
+            _txn("-10", "groceries", date=datetime.date(2025, 12, 1)),
+            _txn("-50", "rent", date=datetime.date(2025, 12, 31)),
+        ]
+    )
+
+    assert "30-day average total spend" in html
+    assert "60.00 EUR" in html
 
 
 def test_generate_report_writes_file_and_creates_parents(tmp_path: Path) -> None:

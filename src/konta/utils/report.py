@@ -8,86 +8,61 @@ from konta.utils.logger import get_logger
 logger = get_logger(__name__)
 
 UNCATEGORIZED = "Uncategorized"
+AVERAGING_WINDOW_DAYS = 30
 
 
 @dataclass
-class CategorySummary:
+class CategoryAverage:
     category: str
-    total: Decimal
-    count: int
-
-    @property
-    def average(self) -> Decimal:
-        return self.total / self.count
+    avg_30d: Decimal
 
 
-def _summarize(outgoing: list[Transaction]) -> list[CategorySummary]:
-    """Aggregate outgoing transactions into per-category totals, sorted by spend descending."""
+def _summarize(outgoing: list[Transaction]) -> list[CategoryAverage]:
+    """Aggregate outgoing transactions into per-category 30-day average spend, sorted descending."""
+    start = min(t.date for t in outgoing)
+    end = max(t.date for t in outgoing)
+    range_days = max((end - start).days, 1)
+    factor = Decimal(AVERAGING_WINDOW_DAYS) / range_days
+
     totals: dict[str, Decimal] = {}
-    counts: dict[str, int] = {}
     for t in outgoing:
         category = t.category or UNCATEGORIZED
         totals[category] = totals.get(category, Decimal(0)) + (-t.amount)
-        counts[category] = counts.get(category, 0) + 1
 
-    summaries = [
-        CategorySummary(category, totals[category], counts[category]) for category in totals
-    ]
-    return sorted(summaries, key=lambda s: s.total, reverse=True)
+    averages = [CategoryAverage(category, total * factor) for category, total in totals.items()]
+    return sorted(averages, key=lambda a: a.avg_30d, reverse=True)
 
 
-def _render_bar(
-    summary: CategorySummary, max_total: Decimal, total_spend: Decimal, currency: str
-) -> str:
-    width = float(summary.total / max_total * 100)
-    share = float(summary.total / total_spend * 100)
+def _render_bar(average: CategoryAverage, max_avg: Decimal, currency: str) -> str:
+    width = float(average.avg_30d / max_avg * 100)
     return f"""
     <div class="bar-row">
-      <div class="bar-label">{summary.category}</div>
-      <div class="bar-track"><div class="bar-fill" style="width: {width:.2f}%"></div></div>
-      <div class="bar-value">{summary.total:.2f} {currency} ({share:.1f}%)</div>
+      <div class="bar-label">{average.category}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width: {width:.2f}%"></div>
+      </div>
+      <div class="bar-value">{average.avg_30d:.2f} {currency}</div>
     </div>"""
 
 
-def _render_table_row(summary: CategorySummary, total_spend: Decimal, currency: str) -> str:
-    share = float(summary.total / total_spend * 100)
-    return f"""
-    <tr>
-      <td>{summary.category}</td>
-      <td>{summary.total:.2f} {currency} ({share:.1f}%)</td>
-      <td>{summary.count}</td>
-      <td>{summary.average:.2f} {currency}</td>
-    </tr>"""
-
-
 def render_report(transactions: list[Transaction]) -> str:
-    """Render a self-contained HTML spend-by-category report from a list of transactions."""
+    """Render a self-contained HTML report of 30-day average spend per category."""
     outgoing = [t for t in transactions if t.amount < 0]
 
     if not outgoing:
         body = "<p>No outgoing transactions found.</p>"
     else:
         currency = outgoing[0].currency
-        summaries = _summarize(outgoing)
-        total_spend = sum((s.total for s in summaries), Decimal(0))
-        start = min(t.date for t in outgoing)
-        end = max(t.date for t in outgoing)
-        max_total = summaries[0].total
+        averages = _summarize(outgoing)
+        max_avg = averages[0].avg_30d
+        total_avg = sum((a.avg_30d for a in averages), Decimal(0))
 
-        bars = "".join(_render_bar(s, max_total, total_spend, currency) for s in summaries)
-        rows = "".join(_render_table_row(s, total_spend, currency) for s in summaries)
-
-        body = f"""
-        <p class="summary">
-          {start.isoformat()} &ndash; {end.isoformat()} &middot;
-          {len(outgoing)} transactions &middot;
-          total spend {total_spend:.2f} {currency}
-        </p>
-        <div class="chart">{bars}</div>
-        <table>
-          <thead><tr><th>Category</th><th>Total</th><th>Count</th><th>Average</th></tr></thead>
-          <tbody>{rows}</tbody>
-        </table>"""
+        bars = "".join(_render_bar(a, max_avg, currency) for a in averages)
+        body = f"""<div class="total">
+      <div class="total-label">30-day average total spend</div>
+      <div class="total-value">{total_avg:.2f} {currency}</div>
+    </div>
+    <div class="chart">{bars}</div>"""
 
     return f"""<!doctype html>
 <html>
@@ -95,22 +70,106 @@ def render_report(transactions: list[Transaction]) -> str:
 <meta charset="utf-8">
 <title>konta report</title>
 <style>
-  body {{ font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 800px; color: #111; }}
-  h1 {{ margin-bottom: 0.25rem; }}
-  .summary {{ color: #555; margin-top: 0; }}
-  .bar-row {{ display: flex; align-items: center; gap: 0.75rem; margin: 0.4rem 0; }}
-  .bar-label {{ width: 140px; flex-shrink: 0; text-align: right; font-size: 0.9rem; }}
-  .bar-track {{ flex: 1; background: #eee; border-radius: 4px; overflow: hidden; }}
-  .bar-fill {{ background: #4a7dfc; height: 1.1rem; }}
-  .bar-value {{ width: 110px; flex-shrink: 0; font-size: 0.85rem; color: #333; }}
-  table {{ border-collapse: collapse; margin-top: 2rem; width: 100%; }}
-  th, td {{ text-align: left; padding: 0.4rem 0.75rem; border-bottom: 1px solid #ddd; }}
-  th {{ color: #555; font-weight: 600; }}
+  .viz-root {{
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:      #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --series-1:       #2a78d6;
+  }}
+  @media (prefers-color-scheme: dark) {{
+    :root:where(:not([data-theme="light"])) .viz-root {{
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:      #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --series-1:       #3987e5;
+    }}
+  }}
+  :root[data-theme="dark"] .viz-root {{
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:      #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --series-1:       #3987e5;
+  }}
+  .viz-root {{
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 2rem;
+  }}
+  .card {{
+    max-width: 800px;
+    margin: 0 auto;
+    background: var(--surface-1);
+    border-radius: 8px;
+    padding: 1.5rem 2rem 2rem;
+  }}
+  h1 {{ margin: 0 0 0.25rem; font-size: 1.25rem; }}
+  .subtitle {{ color: var(--text-secondary); margin: 0 0 1.5rem; font-size: 0.9rem; }}
+  .total {{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    margin: 0 0 1.5rem;
+    background: var(--page-plane);
+    border-radius: 6px;
+  }}
+  .total-label {{ font-size: 0.85rem; color: var(--text-secondary); }}
+  .total-value {{
+    font-size: 1.25rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }}
+  .chart {{ display: flex; flex-direction: column; gap: 0.6rem; }}
+  .bar-row {{ display: flex; align-items: center; gap: 0.75rem; }}
+  .bar-label {{
+    width: 140px;
+    flex-shrink: 0;
+    text-align: right;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }}
+  .bar-track {{
+    flex: 1;
+    background: var(--gridline);
+    border-radius: 4px;
+    height: 20px;
+  }}
+  .bar-fill {{
+    background: var(--series-1);
+    height: 100%;
+    border-radius: 0 4px 4px 0;
+  }}
+  .bar-value {{
+    width: 110px;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }}
 </style>
 </head>
 <body>
-<h1>konta report</h1>
-{body}
+<div class="viz-root">
+  <div class="card">
+    <h1>konta report</h1>
+    <p class="subtitle">30-day average spend per category</p>
+    {body}
+  </div>
+</div>
 </body>
 </html>
 """

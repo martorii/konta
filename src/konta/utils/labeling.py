@@ -10,10 +10,15 @@ logger = get_logger(__name__)
 
 
 def find_uncategorized(transactions: list[Transaction], rules: CategoryRules) -> list[str]:
-    """Return distinct counterparty strings that match no existing rule."""
+    """Return distinct counterparty strings of expenses that match no existing rule.
+
+    Incomes (non-negative amounts) are never categorized, so they're excluded here too.
+    """
     return list(
         dict.fromkeys(
-            t.counterparty for t in transactions if categorize(t.counterparty, rules) is None
+            t.counterparty
+            for t in transactions
+            if t.amount < 0 and categorize(t.counterparty, rules) is None
         )
     )
 
@@ -47,9 +52,11 @@ def _print_category_menu(categories: list[str]) -> dict[str, str]:
     return letter_map
 
 
-def _prompt_category(counterparty: str, letter_map: dict[str, str]) -> str:
+def _prompt_category(counterparty: str, amount: str, letter_map: dict[str, str]) -> str:
     """Ask the user for a category: a menu letter, a new category name, or blank to skip."""
-    raw = input(f"Category for {counterparty!r} (letter, new name, or blank to skip): ").strip()
+    raw = input(
+        f"Category for {counterparty!r} ({amount}) (letter, new name, or blank to skip): "
+    ).strip()
     return letter_map.get(raw.upper(), raw)
 
 
@@ -73,9 +80,13 @@ def label_interactively(
     if limit is not None:
         uncategorized = uncategorized[:limit]
 
+    amount_by_counterparty = {t.counterparty: t for t in transactions}
+
     for counterparty in uncategorized:
+        txn = amount_by_counterparty[counterparty]
+        amount = f"{txn.amount:.2f} {txn.currency}"
         letter_map = _print_category_menu(sorted(rules))
-        category = _prompt_category(counterparty, letter_map)
+        category = _prompt_category(counterparty, amount, letter_map)
         if not category:
             continue
         try:

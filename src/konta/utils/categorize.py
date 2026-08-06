@@ -46,6 +46,13 @@ def categorize(counterparty: str, rules: CategoryRules) -> str | None:
 
 
 def categorize_transaction(transaction: Transaction, rules: CategoryRules) -> Transaction:
-    """Return a copy of `transaction` with `category` set from the given rules."""
+    """Return a copy of `transaction` with `category` set from the given rules.
+
+    Only expenses (negative amounts) are categorized; positive cashflows are left
+    uncategorized (category = None).
+    """
+    if transaction.amount >= 0:
+        return transaction.model_copy(update={"category": None})
+
     category = categorize(transaction.counterparty, rules)
     return transaction.model_copy(update={"category": category})

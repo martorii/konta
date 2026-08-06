@@ -62,6 +62,20 @@ def test_categorize_transaction_sets_category() -> None:
     assert txn.category is None
 
 
+def test_categorize_transaction_leaves_positive_amounts_uncategorized() -> None:
+    rules = _rules(groceries=["REWE"])
+    txn = Transaction(
+        date=datetime.date(2025, 12, 31),
+        amount=Decimal("10"),
+        currency="EUR",
+        counterparty="REWE SAGT DANKE",
+    )
+
+    categorized = categorize_transaction(txn, rules)
+
+    assert categorized.category is None
+
+
 def test_load_rules_compiles_patterns(tmp_path: Path) -> None:
     path = tmp_path / "categories.yaml"
     path.write_text("groceries:\n  - REWE\n  - ALDI\n")
