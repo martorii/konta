@@ -18,6 +18,8 @@ uv run mypy
 uv run pytest
 ```
 
+These same three checks are wired up as local pre-commit hooks (`.pre-commit-config.yaml`).
+
 ## Linting (ruff)
 
 Enabled rule sets: `E`, `F`, `I`, `UP`, `B`, `SIM` (pycodestyle errors, pyflakes, isort, pyupgrade, bugbear, simplify). Line length is 100.
